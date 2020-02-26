@@ -1,0 +1,11 @@
+schemaVersion: 2.2
+description: Install ClamAV
+mainSteps:
+  - 
+    action: aws:runShellScript
+    name: install clamav
+    inputs:
+      runCommand:
+        - sudo amazon-linux-extras install epel -y
+        - sudo yum update -y
+        - sudo yum install clamav -y

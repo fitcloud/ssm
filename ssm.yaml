@@ -1,0 +1,403 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SSM
+
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair
+
+Resources:
+# Network Configuration
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        -
+          Key: Name
+          Value: eb-vpc
+
+  # Public Subnets
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.0.0/24
+      AvailabilityZone: ap-northeast-2a
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-public-subnet-az1
+    DependsOn: VPC
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: ap-northeast-2b
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-public-subnet-az2
+    DependsOn: VPC
+
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.2.0/24
+      AvailabilityZone: ap-northeast-2c
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-public-subnet-az3
+    DependsOn: VPC
+
+  # Private Subnets
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.10.0/24
+      AvailabilityZone: ap-northeast-2a
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-private-subnet-az1
+    DependsOn: VPC
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.11.0/24
+      AvailabilityZone: ap-northeast-2b
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-private-subnet-az2
+    DependsOn: VPC
+
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.1.12.0/24
+      AvailabilityZone: ap-northeast-2c
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-private-subnet-az3
+    DependsOn: VPC
+
+  # Custom Gateways
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        -
+          Key: Name
+          Value: eb-igw
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+    DependsOn: [VPC, InternetGateway]
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIPNAT.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        -
+          Key: Name
+          Value: eb-nat-gateway
+    DependsOn:
+      - PublicSubnet1
+      - EIPNAT
+      - InternetGateway
+      - VPCGatewayAttachment
+    
+  EIPNAT:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+    DependsOn: VPC
+
+  # Route Tables
+  RouteTablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-public-rt
+    DependsOn: VPC
+
+  RouteTablePrivate:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: eb-private-rt
+    DependsOn: VPC
+
+  # Routes
+  RouteIGW:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+    DependsOn: [RouteTablePublic, InternetGateway, VPCGatewayAttachment]
+
+  RouteNAT:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+    DependsOn: [RouteTablePrivate, NATGateway, VPCGatewayAttachment]
+
+  # Route Table Assocations
+  PublicSubnet1RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref PublicSubnet1
+    DependsOn: [RouteTablePublic, PublicSubnet1]
+
+  PublicSubnet2RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref PublicSubnet2
+    DependsOn: [RouteTablePublic, PublicSubnet2]
+
+  PublicSubnet3RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref PublicSubnet3
+    DependsOn: [RouteTablePublic, PublicSubnet3]
+
+  PrivateSubnet1RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref PrivateSubnet1
+    DependsOn: [RouteTablePrivate, PrivateSubnet1]
+
+  PrivateSubnet2RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref PrivateSubnet2
+    DependsOn: [RouteTablePrivate, PrivateSubnet2]
+
+  PrivateSubnet3RTA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref PrivateSubnet3
+    DependsOn: [RouteTablePrivate, PrivateSubnet3]
+  
+  OnpremRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - ssm.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonSSMDirectoryServiceAccess
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+  # IAM roles assigned to EC2 instnaces
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+
+  # IAM Instance profile assigned to EC2 instnaces
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2Role
+    DependsOn: EC2Role
+
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ssm-sg
+      GroupDescription: ssm-sg
+      VpcId: !Ref VPC
+      Tags:
+        -
+          Key: Name
+          Value: ssm-sg
+
+  ProdApp:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0a93a08544874b3b7
+      InstanceType: m5.large
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      SubnetId: !Ref PrivateSubnet1
+      Tags:
+        -
+          Key: Name
+          Value: ProdApp
+        -
+          Key: Env
+          Value: Prod
+        -
+          Key: App
+          Value: SSM
+    DependsOn:
+      - InstanceSecurityGroup
+      - InstanceProfile
+
+  TestApp:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0a93a08544874b3b7
+      InstanceType: t2.nano
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        -
+          Key: Name
+          Value: TestApp
+        - 
+          Key: Env
+          Value: Test
+        -
+          Key: App
+          Value: SSM
+    DependsOn:
+      - InstanceSecurityGroup
+      - InstanceProfile
+
+  Prod3rd:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0564a1c2763f42d39
+      InstanceType: t2.small
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      SubnetId: !Ref PrivateSubnet1
+      Tags:
+        -
+          Key: Name
+          Value: Prod3rd
+        -
+          Key: Env
+          Value: Prod
+        -
+          Key: App
+          Value: SSM
+    DependsOn:
+      - InstanceSecurityGroup
+      - InstanceProfile
+
+  Test3rd:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0564a1c2763f42d39
+      InstanceType: t2.micro
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        -
+          Key: Name
+          Value: Test3rd
+        -
+          Key: Env
+          Value: Test
+        -
+          Key: App
+          Value: SSM
+    DependsOn:
+      - InstanceSecurityGroup
+      - InstanceProfile
+
+  OnpremApp:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-003b3eb1bc17b38ed
+      InstanceType: t2.large
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      SubnetId: !Ref PublicSubnet3
+      Tags:
+        -
+          Key: Name
+          Value: OnpremApp
+        -
+          Key: Env
+          Value: Prod
+    DependsOn:
+      - InstanceSecurityGroup
+      - InstanceProfile
