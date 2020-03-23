@@ -382,8 +382,8 @@ Resources:
   OnpremApp:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-003b3eb1bc17b38ed
-      InstanceType: t2.large
+      ImageId: ami-0dbadd8c47cf535fd
+      InstanceType: t2.micro
       DisableApiTermination: false
       InstanceInitiatedShutdownBehavior: stop
       Monitoring: false
