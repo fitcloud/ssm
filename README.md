@@ -14,9 +14,9 @@
 
 1. AWS Management Console에서 좌측 상단에 있는 **[Services]** 를 선택하고 검색창에서 IAM를 검색하거나 **[Security, Identity, & Compliance]** 바로 밑에 있는 **[IAM]** 를 선택
 
-2. **[Roles]** &rightarrow; *ssm-lab-EC2Role-xxxx*를 선택 &rightarrow; **[Attach policies]** :white_check_mark: *AmazonEC2RoleForSSM* &rightarrow; **[Attach policy]** &rightarrow;
+2. **[Roles]** &rightarrow; *ssm-lab-EC2Role-xxxx*를 선택 &rightarrow; **[Attach policies]** :white_check_mark: *AmazonEC2RoleForSSM* &rightarrow; **[Attach policy]**
 
-3. AWS Management Console에서 좌측 상단에 있는 **[Services]** 를 선택하고 검색창에서 Systems Manager를 검색하거나 **[Management & Goverrnance]** 밑에 있는 **[Systems Manager]** 를 선택
+3. AWS Management Console에서 좌측 상단에 있는 **[Services]** 를 선택하고 검색창에서 Systems Manager를 검색하거나 **[Management & Governance]** 밑에 있는 **[Systems Manager]** 를 선택
 
 4. 왼쪽 패널에서 **Managed Instances** 선택하고 4개의 인스턴스들이 Managed Instance로 등록됬는지 확인
 
@@ -28,7 +28,7 @@
 
 3. **Activation Code** 와 **Activation ID** 를 메모
 
-4. *OnpremApp* 인스턴스에 SSH 접속
+4. 보안그룹에서 SSH 인바운드 룰을 설정하고 *OnpremApp* 인스턴스에 SSH 접속
 
 5. SSM Agent 설치 및 설정 - [AWS Document](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-managed-linux.html)
 
@@ -55,7 +55,7 @@
 
 2. S3 Dashboard에서 **[Create bucket]** 클릭 &rightarrow; **Bucket name** = *ssm-lab-inventory-[임의의 문자 및 숫자]*, **Region** = *Asia Pacific (Seoul)* &rightarrow; **[Create]**
 
-3. IAM Dashboard 에서 *ssm-lab-EC2Role-xxxx* 과 *ssm-lab-OnpremRole-xxxx*에 아래와 같은 Inline policy 추가
+3. IAM Dashboard 에서 *ssm-lab-EC2Role-xxxx* 과 *ssm-lab-OnpremRole-xxxx*에 아래와 같은 Inline policy 추가 (<S3_BUCKET_NAME>을 위에서 생성한 S3 버킷이름으로 수정)
 
     ```json
     {
@@ -88,7 +88,7 @@
 
 ### Inventory Data 저장
 
-1. Inventory execution logs 가 저장되는 S3 버킷에 아래와 같은 Bucket Policy 적용
+1. Inventory execution logs 가 저장되는 S3 버킷에 아래와 같은 Bucket Policy 적용 (<S3_BUCKET_NAME>을 위에서 해당 S3 버킷이름으로 수정)
 
     ```json
     {
@@ -162,8 +162,8 @@
         name: "clamav_install"
         inputs:
           runCommand:
-            - "sudo yum update -y"
-            - "sudo yum install epel-release -y"
+            - "sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+            - "sudo dnf config-manager --set-enabled rhui-codeready-builder-for-rhel-8-rhui-rpms"
             - "sudo yum install clamav -y"
     ```
 
@@ -200,11 +200,11 @@
 
 ## Create an AMI with Systems Manager Automation
 
-1. 해당 [문서](https://docs.amazonaws.cn/en_us/systems-manager/latest/userguide/automation-cf.html)를 참고해서 Systems Manager Automation 에 필요한 IAM roles 생성
+1. 해당 Repository에 있는 `role.yaml` 파일로 CloudFormation 스택 생성
 
 2. *Systems Manager* Dashboard 왼쪽 패널에서 **Automation** 선택 &rightarrow; **[Execute automation]**
 
-3. **Automation document** 에  *AWS-UpdateLinuxAMI* 선택 &rightarrow; **[Next]** &rightarrow; **SourceAmiId** = *ami-0a93a08544874b3b7* &rightarrow; **[Execute]**
+3. **Automation document** 에  *AWS-UpdateLinuxAMI* 선택 &rightarrow; **[Next]** &rightarrow; **SourceAmiId** = *ami-0a93a08544874b3b7* , **AutomationAssumeRole** = 위의 CloudFormation 스택 생성할때 만든 `AutomationRoleName` 선택, **IamInstanceProfileName** = 위의 CloudFormation 스택 생성할때 만든 `AutomationEC2RoleName` 입력 &rightarrow; **[Execute]**
 
 4. *Automation Dashboard* 를 통해서 각 Action 들이 실행되는걸 확인하고 마지막 스탭이 (*terminateInstance*) 완료되면 EC2 Dashboard 로 이동해서 AMI가 생성됬는지 확인
 

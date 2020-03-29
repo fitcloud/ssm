@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SSM Automation Role
+
+Parameters:
+  AutomationRoleName:
+    Description: Name of SSM Automation Role
+    Type: String
+
+  AutomationEC2RoleName:
+    Description: Name of SSM Automation EC2 Role
+    Type: String
+
+Resources:
+  AutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref AutomationRoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - ssm.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
+
+  PassRoleolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: SSM-Automation-PassRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource: "*"
+      Roles:
+        - Ref: AutomationRole
+    DependsOn:
+      - AutomationRole
+
+  AutomationEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref AutomationEC2RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - ssm.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+
+  AutomationEC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Ref AutomationEC2RoleName
+      Path: /
+      Roles:
+        - !Ref AutomationEC2Role
+    DependsOn: AutomationEC2Role
